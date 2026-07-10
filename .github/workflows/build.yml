@@ -1,0 +1,40 @@
+name: Mobile Cloud Compiler
+on:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Clean Source Code
+        uses: actions/checkout@v4
+
+      - name: Launch Node Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java Native Compiler
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install JavaScript Framework Packages
+        run: npm install
+
+      - name: Scaffold & Compile APK from Clean Source
+        run: |
+          # Generate a dummy placeholder icon so the engine compiles without errors
+          mkdir -p assets && echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" | base64 -d > assets/icon.png
+          
+          # This instantly creates the temporary 40k files, builds the apk, and drops them
+          npx expo prebuild --platform android
+          cd android && ./gradlew assembleDebug
+
+      - name: Pass Finished App Binary to Phone
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloudApp-Debug-Build
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          
