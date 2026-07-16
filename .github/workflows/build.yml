@@ -1,6 +1,6 @@
 name: Build Android APK From Single File
 on:
-  workflow_dispatch: # Allows you to trigger the build manually from the GitHub website
+  workflow_dispatch:
 
 jobs:
   build-apk:
@@ -9,39 +9,43 @@ jobs:
       - name: Checkout single file repo
         uses: actions/checkout@v4
 
+      # 1. Provide Go environment
       - name: Set up Go environment
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      - name: Resolve dependencies and install toolchain
+      # 2. Provide the Android Build Environment
+      - name: Set up Java & Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
         run: |
-          # 1. Initialize Go module environment inside the virtual machine
+          sdkmanager "ndk;25.2.9519653"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      # 3. Download dependencies and run the mobile packager
+      - name: Compile Pure Go APK
+        run: |
+          # Initialize the Go module framework on the fly
           go mod init myapp
-          
-          # 2. Add Raylib and Fyne UI bindings
-          go get github.com/gen2brain/raylib-go/raylib
-          go get fyne.io/fyne/v2
+          go get github.com/hajimehoshi/ebiten/v2
           go mod tidy
           
-          # 3. Install the correct standalone cross-compilation package
-          go install github.com/fyne-io/fyne-cross@latest
+          # Install the official Ebitengine mobile build tool
+          go install github.com/hajimehoshi/ebiten/v2/cmd/ebitenmobile@latest
+          
+          # Build the production APK directly using the dynamic environment flags
+          # No Docker container required, eliminating the missing OpenSLES library error
+          ~/go/bin/ebitenmobile bind -target android -javapkg com.example.singlefile -o myapp.aar .
+          
+          # Generate a clean standalone debug APK out of the library binding
+          ~/go/bin/ebitenmobile build -target android -javapkg com.example.singlefile -o output-app.apk .
 
-      - name: Generate placeholder app icon dynamically
-        run: |
-          # Fyne requires a target app icon to package binaries.
-          # This creates a solid pixel PNG so your root directory stays completely clean.
-          echo -n "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" | base64 --decode > icon.png
-
-      - name: Run Docker Cross-Compilation
-        run: |
-          # fyne-cross executes inside pre-configured Docker containers under the hood.
-          # We pass '--no-cache' to ensure a lean execution inside the runner's storage space.
-          ~/go/bin/fyne-cross android -app-id com.example.singlefile -icon icon.png --no-cache
-
+      # 4. Save your finished package
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: native-android-app
-          path: fyne-cross/dist/android/*.apk
+          name: pure-go-android-app
+          path: output-app.apk
           
