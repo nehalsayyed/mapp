@@ -1,5 +1,7 @@
 name: Build Signed Minimized Production APK
-on: workflow_dispatch
+on:
+  push:
+    branches: workflow_dispatch
 
 jobs:
   build:
@@ -47,21 +49,28 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      # 5. Automatically create a key and sign the APK for immediate installation
-      - name: Sign Production APK
-        uses: ridedott/android-sign-action@v1
-        id: sign_app
-        with:
-          releaseDirectory: ../wrapper/android/app/build/outputs/apk/release
-          signingKeyBase64: '' # Leaving empty makes the action auto-generate a secure debugging release key
-          alias: mykeyalias
-          keyStorePassword: mykeystorepassword
-          keyPassword: mykeypassword
+      # 5. Native Signing Step (Replaces the broken third-party action completely)
+      - name: Sign Production APK Natively
+        run: |
+          # A. Generate a secure, transient signing key out of thin air
+          keytool -genkeypair -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-alias -storepass mykeystorepassword -keypass mykeypassword -dname "CN=App, O=Production, C=US"
+          
+          # B. Locate the built-in Android SDK apksigner tool dynamically on the runner machine
+          APKSIGNER_PATH=$(find $ANDROID_HOME/build-tools -name apksigner | head -n 1)
+          
+          # C. Find the raw generated unsigned APK file
+          UNSIGNED_APK=$(find ../wrapper/android/app/build/outputs/apk/release -name "*-unsigned.apk" | head -n 1)
+          SIGNED_APK="../wrapper/android/app/build/outputs/apk/release/app-release-signed.apk"
+          
+          # D. Execute the toolchain to produce the signed application container
+          $APKSIGNER_PATH sign --ks my-release-key.jks --ks-pass pass:mykeystorepassword --key-pass pass:mykeypassword --out "$SIGNED_APK" "$UNSIGNED_APK"
+          
+          echo "Successfully generated signed package at $SIGNED_APK"
 
       # 6. Extract the signed, optimized target asset
       - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
           name: signed-release-apk
-          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
+          path: ../wrapper/android/app/build/outputs/apk/release/app-release-signed.apk
           
