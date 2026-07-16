@@ -9,13 +9,12 @@ jobs:
       - name: Checkout single file repo
         uses: actions/checkout@v4
 
-      # 1. Provide Go environment
+      # 1. Use 'stable' to automatically satisfy the Go 1.24+ requirement
       - name: Set up Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: 'stable'
 
-      # 2. Provide the Android Build Environment
       - name: Set up Java & Android SDK
         uses: android-actions/setup-android@v3
 
@@ -24,25 +23,19 @@ jobs:
           sdkmanager "ndk;25.2.9519653"
           echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
 
-      # 3. Download dependencies and run the mobile packager
       - name: Compile Pure Go APK
         run: |
-          # Initialize the Go module framework on the fly
+          # Initialize environment
           go mod init myapp
           go get github.com/hajimehoshi/ebiten/v2
           go mod tidy
           
-          # Install the official Ebitengine mobile build tool
+          # Install the compiler
           go install github.com/hajimehoshi/ebiten/v2/cmd/ebitenmobile@latest
           
-          # Build the production APK directly using the dynamic environment flags
-          # No Docker container required, eliminating the missing OpenSLES library error
-          ~/go/bin/ebitenmobile bind -target android -javapkg com.example.singlefile -o myapp.aar .
-          
-          # Generate a clean standalone debug APK out of the library binding
+          # ONLY run the build command (bind is what crashed your main package)
           ~/go/bin/ebitenmobile build -target android -javapkg com.example.singlefile -o output-app.apk .
 
-      # 4. Save your finished package
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
