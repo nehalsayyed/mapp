@@ -1,49 +1,67 @@
-name: Build JS APK
+name: Build Signed Minimized Production APK
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repo
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Set up Node.js Engine
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Package Application
+      # 1. Initialize Capacitor and sync project files
+      - name: Bootstrap Capacitor Architecture
         run: |
           mkdir ../wrapper && cd ../wrapper
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "My Single File App" "com.singlefile.jsapp" --web-dir="$GITHUB_WORKSPACE"
+          npx cap init "Min App" "com.production.minapp" --web-dir="$GITHUB_WORKSPACE"
           npx cap add android
           npx cap sync android
 
-      # FIXED: Upgraded java-version from 17 to 21 to match what Capacitor requires
+      # 2. Inject code minification & resource shrinking configurations
+      - name: Force Code and Resource Minification
+        run: |
+          GRADLE_FILE="../wrapper/android/app/build.gradle"
+          sed -i '/buildTypes {/,/}/ {
+            /release {/!b
+            :a; n; /}/!ba
+            i \            minifyEnabled true\n            shrinkResources true\n            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+          }' "$GRADLE_FILE"
+
+      # 3. Handle dependency convergence with modern Java 21 engine
       - name: Set up Java Environment
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Build APK via Gradle
+      # 4. Compile the application using the highly optimized release parameters
+      - name: Run Production Compiler
         run: |
           cd ../wrapper/android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
-      - name: Upload APK
+      # 5. Automatically create a key and sign the APK for immediate installation
+      - name: Sign Production APK
+        uses: ridedott/android-sign-action@v1
+        id: sign_app
+        with:
+          releaseDirectory: ../wrapper/android/app/build/outputs/apk/release
+          signingKeyBase64: '' # Leaving empty makes the action auto-generate a secure debugging release key
+          alias: mykeyalias
+          keyStorePassword: mykeystorepassword
+          keyPassword: mykeypassword
+
+      # 6. Extract the signed, optimized target asset
+      - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: finished-android-app
-          path: ../wrapper/android/app/build/outputs/apk/debug/*.apk
-          
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: finished-android-app
-          path: ../wrapper/android/app/build/outputs/apk/debug/*.apk
+          name: signed-release-apk
+          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
           
