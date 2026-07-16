@@ -1,5 +1,6 @@
-name: Build Native Android APK
-on: workflow_dispatch
+name: Build Android APK From Single File
+on:
+  workflow_dispatch: # Allows you to trigger the build manually from the GitHub website
 
 jobs:
   build-apk:
@@ -13,29 +14,34 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Set up Java & Android NDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK toolchain component
+      - name: Resolve dependencies and install toolchain
         run: |
-          sdkmanager "ndk;25.2.9519653"
-          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
-
-      - name: Resolve dependencies and compile APK dynamically
-        run: |
-          # Dynamically turn the single file into a buildable module inside the runner env
+          # 1. Initialize Go module environment inside the virtual machine
           go mod init myapp
+          
+          # 2. Add Raylib and Fyne UI bindings
           go get github.com/gen2brain/raylib-go/raylib
+          go get fyne.io/fyne/v2
+          go mod tidy
           
-          # Install the tool that wraps Go into native android builds without keeping project boilerplate
-          go install github.com/fyne-io/fyne/v2/cmd/fyne-cross@latest
-          
-          # Execute the compilation targeting android
-          fyne-cross android -app-id com.example.singlefile -icon icon.png
-          
+          # 3. Install the correct standalone cross-compilation package
+          go install github.com/fyne-io/fyne-cross@latest
+
+      - name: Generate placeholder app icon dynamically
+        run: |
+          # Fyne requires a target app icon to package binaries.
+          # This creates a solid pixel PNG so your root directory stays completely clean.
+          echo -n "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" | base64 --decode > icon.png
+
+      - name: Run Docker Cross-Compilation
+        run: |
+          # fyne-cross executes inside pre-configured Docker containers under the hood.
+          # We pass '--no-cache' to ensure a lean execution inside the runner's storage space.
+          ~/go/bin/fyne-cross android -app-id com.example.singlefile -icon icon.png --no-cache
+
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: native-app.apk
+          name: native-android-app
           path: fyne-cross/dist/android/*.apk
           
