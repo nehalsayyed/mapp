@@ -1,44 +1,41 @@
-name: Mobile Cloud Compiler
-on:
-  workflow_dispatch: 
+name: Build Native Android APK
+on: workflow_dispatch
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Clean Source Code
+      - name: Checkout single file repo
         uses: actions/checkout@v4
 
-      - name: Launch Node Environment
-        uses: actions/setup-node@v4
+      - name: Set up Go environment
+        uses: actions/setup-go@v5
         with:
-          node-version: 20
+          go-version: '1.22'
 
-      - name: Setup Java Native Compiler
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+      - name: Set up Java & Android NDK
+        uses: android-actions/setup-android@v3
 
-      - name: Install JavaScript Framework Packages
-        run: npm install
-
-      - name: Scaffold & Compile APK from Clean Source
-        env:
-          # This tells the Java compiler it is allowed to use up to 4GB of RAM
-          GRADLE_OPTS: -Xmx4096m -XX:MaxMetaspaceSize=1024m
+      - name: Install NDK toolchain component
         run: |
-          # Generate a dummy placeholder icon so the engine compiles without errors
-          mkdir -p assets && echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" | base64 -d > assets/icon.png
+          sdkmanager "ndk;25.2.9519653"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      - name: Resolve dependencies and compile APK dynamically
+        run: |
+          # Dynamically turn the single file into a buildable module inside the runner env
+          go mod init myapp
+          go get github.com/gen2brain/raylib-go/raylib
           
-          # Force Expo to prebuild the temporary native shell files
-          npx expo prebuild --platform android
+          # Install the tool that wraps Go into native android builds without keeping project boilerplate
+          go install github.com/fyne-io/fyne/v2/cmd/fyne-cross@latest
           
-          # Compile the final binary with the expanded memory environment active
-          cd android && ./gradlew assembleDebug
+          # Execute the compilation targeting android
+          fyne-cross android -app-id com.example.singlefile -icon icon.png
           
-      - name: Pass Finished App Binary to Phone
+      - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: CloudApp-Debug-Build
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: native-app.apk
+          path: fyne-cross/dist/android/*.apk
+          
