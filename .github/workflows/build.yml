@@ -1,44 +1,47 @@
-name: Build Android APK From Single File
-on:
-  workflow_dispatch:
+name: Build JS APK
+on: workflow_dispatch
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout single file repo
+      - name: Checkout Repo
         uses: actions/checkout@v4
 
-      # 1. Use 'stable' to automatically satisfy the Go 1.24+ requirement
-      - name: Set up Go environment
-        uses: actions/setup-go@v5
+      # Sets up standard Node dependencies in the runner's shadow memory
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          go-version: 'stable'
+          node-version: 20
 
-      - name: Set up Java & Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android NDK
+      # Creates a temporary mobile shell inside the runner and drops your index.html inside it
+      - name: Package Application
         run: |
-          sdkmanager "ndk;25.2.9519653"
-          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
+          mkdir ../wrapper && cd ../wrapper
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "My Single File App" "com.singlefile.jsapp" --web-dir="../$GITHUB_REPOSITORY"
+          npx cap add android
+          npx cap sync android
 
-      - name: Compile Pure Go APK
+      # Sets up the baseline Android SDK parameters automatically
+      - name: Set up Java Environment
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # Compiles the Android code to generate your final APK
+      - name: Build APK via Gradle
         run: |
-          # Initialize environment
-          go mod init myapp
-          go get github.com/hajimehoshi/ebiten/v2
-          go mod tidy
-          
-          # Install the compiler
-          go install github.com/hajimehoshi/ebiten/v2/cmd/ebitenmobile@latest
-          
-          # ONLY run the build command (bind is what crashed your main package)
-          ~/go/bin/ebitenmobile build -target android -javapkg com.example.singlefile -o output-app.apk .
+          cd ../wrapper/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-      - name: Upload Finished APK
+      # Saves the ready-to-install app inside your GitHub Actions tab
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: pure-go-android-app
-          path: output-app.apk
+          name: finished-android-app
+          path: ../wrapper/android/app/build/outputs/apk/debug/*.apk
           
