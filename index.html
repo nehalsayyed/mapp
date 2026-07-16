@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Single File App</title>
+    <style>
+        /* This keeps your app looking like a clean mobile app */
+        body {
+            font-family: sans-serif;
+            background-color: #121212;
+            color: white;
+            text-align: center;
+            padding: 50px 20px;
+            margin: 0;
+        }
+        button {
+            background-color: #03dac6;
+            color: black;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>My First Application</h1>
+    <p>This entire app exists inside a single index.html file!</p>
+    
+    <button onclick="buttonClicked()">Tap Me</button>
+
+    <script>
+        // WRITE ALL YOUR APP LOGIC HERE IN PLAIN JAVASCRIPT
+        function buttonClicked() {
+            alert("It works! You just built an app logic loop.");
+        }
+    </script>
+
+</body>
+</html>
