@@ -1,7 +1,5 @@
 name: Build Signed Minimized Production APK
-on:
-  push:
-    branches: workflow_dispatch
+on: workflow_dispatch
 
 jobs:
   build:
