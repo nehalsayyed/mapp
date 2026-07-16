@@ -8,37 +8,33 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      # Sets up standard Node dependencies in the runner's shadow memory
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # Creates a temporary mobile shell inside the runner and drops your index.html inside it
+      # Fixed: Uses $GITHUB_WORKSPACE to accurately locate your root index.html file
       - name: Package Application
         run: |
           mkdir ../wrapper && cd ../wrapper
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "My Single File App" "com.singlefile.jsapp" --web-dir="../$GITHUB_REPOSITORY"
+          npx cap init "My Single File App" "com.singlefile.jsapp" --web-dir="$GITHUB_WORKSPACE"
           npx cap add android
           npx cap sync android
 
-      # Sets up the baseline Android SDK parameters automatically
       - name: Set up Java Environment
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # Compiles the Android code to generate your final APK
       - name: Build APK via Gradle
         run: |
           cd ../wrapper/android
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      # Saves the ready-to-install app inside your GitHub Actions tab
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
