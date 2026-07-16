@@ -13,7 +13,6 @@ jobs:
         with:
           node-version: 20
 
-      # Fixed: Uses $GITHUB_WORKSPACE to accurately locate your root index.html file
       - name: Package Application
         run: |
           mkdir ../wrapper && cd ../wrapper
@@ -23,10 +22,11 @@ jobs:
           npx cap add android
           npx cap sync android
 
+      # FIXED: Upgraded java-version from 17 to 21 to match what Capacitor requires
       - name: Set up Java Environment
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Build APK via Gradle
@@ -35,6 +35,12 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: finished-android-app
+          path: ../wrapper/android/app/build/outputs/apk/debug/*.apk
+          
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
