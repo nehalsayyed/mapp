@@ -1,74 +1,64 @@
-name: Build Signed Minimized Production APK
-on: workflow_dispatch
+name: Build Minimized Capacitor APK
+
+on:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
 
-      - name: Set up Node.js Engine
+    steps:
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
-      # 1. Initialize Capacitor and sync project files
-      - name: Bootstrap Capacitor Architecture
-        run: |
-          mkdir ../wrapper && cd ../wrapper
-          npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "Min App" "com.production.minapp" --web-dir="$GITHUB_WORKSPACE"
-          npx cap add android
-          npx cap sync android
-
-      # 2. Inject code minification & resource shrinking configurations
-      - name: Force Code and Resource Minification
-        run: |
-          GRADLE_FILE="../wrapper/android/app/build.gradle"
-          sed -i '/buildTypes {/,/}/ {
-            /release {/!b
-            :a; n; /}/!ba
-            i \            minifyEnabled true\n            shrinkResources true\n            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-          }' "$GRADLE_FILE"
-
-      # 3. Handle dependency convergence with modern Java 21 engine
-      - name: Set up Java Environment
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          distribution: temurin
+          java-version: 21
 
-      # 4. Compile the application using the highly optimized release parameters
-      - name: Run Production Compiler
+      - name: Create Capacitor App
         run: |
-          cd ../wrapper/android
-          chmod +x gradlew
-          ./gradlew assembleRelease
+          mkdir app
+          cd app
 
-      # 5. Native Signing Step (Replaces the broken third-party action completely)
-      - name: Sign Production APK Natively
+          npm init -y
+
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+          mkdir www
+          cat > www/index.html <<EOF
+          <!doctype html>
+          <html>
+          <body>Hello</body>
+          </html>
+          EOF
+
+          npx cap init MyApp com.example.myapp --web-dir=www
+          npx cap add android
+
+      - name: Enable Release Optimization
         run: |
-          # A. Generate a secure, transient signing key out of thin air
-          keytool -genkeypair -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-alias -storepass mykeystorepassword -keypass mykeypassword -dname "CN=App, O=Production, C=US"
-          
-          # B. Locate the built-in Android SDK apksigner tool dynamically on the runner machine
-          APKSIGNER_PATH=$(find $ANDROID_HOME/build-tools -name apksigner | head -n 1)
-          
-          # C. Find the raw generated unsigned APK file
-          UNSIGNED_APK=$(find ../wrapper/android/app/build/outputs/apk/release -name "*-unsigned.apk" | head -n 1)
-          SIGNED_APK="../wrapper/android/app/build/outputs/apk/release/app-release-signed.apk"
-          
-          # D. Execute the toolchain to produce the signed application container
-          $APKSIGNER_PATH sign --ks my-release-key.jks --ks-pass pass:mykeystorepassword --key-pass pass:mykeypassword --out "$SIGNED_APK" "$UNSIGNED_APK"
-          
-          echo "Successfully generated signed package at $SIGNED_APK"
+          FILE=app/android/app/build.gradle
 
-      # 6. Extract the signed, optimized target asset
-      - name: Upload Signed APK
+          sed -i 's/minifyEnabled false/minifyEnabled true/g' "$FILE" || true
+          sed -i 's/shrinkResources false/shrinkResources true/g' "$FILE" || true
+
+          grep -q "shrinkResources" "$FILE" || \
+          sed -i '/minifyEnabled true/a\            shrinkResources true' "$FILE"
+
+          grep -q "proguard-android-optimize.txt" "$FILE" || \
+          sed -i 's/proguard-android.txt/proguard-android-optimize.txt/g' "$FILE"
+
+      - name: Build Release APK
+        working-directory: app/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: signed-release-apk
-          path: ../wrapper/android/app/build/outputs/apk/release/app-release-signed.apk
+          name: minimized-apk
+          path: app/android/app/build/outputs/apk/release/*.apk
           
