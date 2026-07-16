@@ -1,27 +1,39 @@
 package main
 
 import (
-	"github.com/gen2brain/raylib-go/raylib"
+	"image/color"
+	"log"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
+type App struct{}
+
+// Update handles your application logic (runs 60 times a second)
+func (a *App) Update() error {
+	return nil
+}
+
+// Draw handles rendering your graphics to the screen
+func (a *App) Draw(screen *ebiten.Image) {
+	// Clear the screen with a background color
+	screen.Fill(color.RGBA{0x22, 0x22, 0x22, 0xff})
+
+	// Print text directly onto the interface
+	ebitenutil.DebugPrint(screen, "Congrats! Single-file Pure Go APK is running!")
+}
+
+// Layout handles scaling across different mobile screens
+func (a *App) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	return 320, 240
+}
+
 func main() {
-	// Initialize a window (Raylib translates this to the Android fullscreen surface automatically)
-	rl.InitWindow(800, 450, "Single File App")
-	defer rl.CloseWindow()
+	ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowTitle("Single File Pure Go App")
 
-	rl.SetTargetFPS(60)
-
-	for !rl.WindowShouldClose() {
-		rl.BeginDrawing()
-
-		// Clear screen to an absolute background color
-		rl.ClearBackground(rl.RayWhite)
-
-		// Draw your UI elements / text directly
-		rl.DrawText("Congrats! Built from a single root file.", 100, 200, 20, rl.LightGray)
-		rl.DrawRectangle(100, 250, 200, 50, rl.Maroon)
-		rl.DrawText("Native APK Button", 120, 265, 16, rl.White)
-
-		rl.EndDrawing()
+	if err := ebiten.RunGame(&App{}); err != nil {
+		log.Fatal(err)
 	}
 }
